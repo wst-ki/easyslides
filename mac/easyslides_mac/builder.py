@@ -6,9 +6,91 @@ import json
 import re
 from pathlib import Path
 from typing import Any
+from xml.etree import ElementTree as ET
 
 from .paths import ensure_repo_scripts_on_path, resolve_template_dir
 from .qa import run_qa
+
+
+def _apply_template_scientific_body_style(svg_files: list[Path], template_dir: Path) -> None:
+    """Optionally align upstream `scientific-body` colors & dual-font typography with a custom template.
+
+    Activated only when the template's `layouts.json` explicitly declares
+    `typography.normalize_scientific_body = true` (leaves built-in templates untouched).
+    """
+    layouts_path = template_dir / "layouts.json"
+    if not layouts_path.is_file():
+        return
+    try:
+        meta = json.loads(layouts_path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError):
+        return
+    typo = meta.get("typography")
+    if not isinstance(typo, dict) or not typo.get("normalize_scientific_body"):
+        return
+
+    colors = meta.get("colors") if isinstance(meta.get("colors"), dict) else {}
+    primary = str(colors.get("primary") or "#4472C4")
+    accent = str(colors.get("banner") or colors.get("accent") or primary)
+    ink = str(colors.get("body") or colors.get("ink") or "#2B3A46")
+    border = str(colors.get("border") or "#CED5DA")
+    latin = str(typo.get("latin_font") or "Times New Roman")
+    ea = str(typo.get("east_asian_font") or "Microsoft YaHei")
+    dual_font = f"'{latin}', '{ea}'"
+    body_pt = float(typo.get("body_pt") or 17.0)
+    body_px = f"{body_pt * 4.0 / 3.0:.4f}"
+    caption_pt = float(typo.get("caption_pt") or 14.0)
+    caption_px = f"{caption_pt * 4.0 / 3.0:.4f}"
+
+    color_map = {
+        "#102F4A": primary,
+        "#194A37": primary,
+        "#2F759B": accent,
+        "#54786B": accent,
+        "#17251F": ink,
+        "#D3E4DA": border,
+        "#D8E1D9": border,
+    }
+    ET.register_namespace("", "http://www.w3.org/2000/svg")
+    ET.register_namespace("xlink", "http://www.w3.org/1999/xlink")
+
+    for svg_path in svg_files:
+        text = svg_path.read_text(encoding="utf-8")
+        if 'id="scientific-body"' not in text:
+            continue
+        tree = ET.parse(svg_path)
+        root = tree.getroot()
+        body_group = None
+        for el in root.iter():
+            if el.attrib.get("id") == "scientific-body":
+                body_group = el
+                break
+        if body_group is None:
+            continue
+        for el in body_group.iter():
+            for attr in ("fill", "stroke"):
+                val = el.attrib.get(attr)
+                if val and val.upper() in color_map:
+                    el.set(attr, color_map[val.upper()])
+            local_tag = el.tag.rsplit("}", 1)[-1]
+            if local_tag == "tspan" and "font-family" in el.attrib:
+                del el.attrib["font-family"]
+            elif local_tag == "text":
+                el.set("font-family", dual_font)
+                role = el.attrib.get("data-text-role", "")
+                if role == "caption":
+                    el.set("font-size", caption_px)
+                    el.set("font-weight", "400")
+                elif role in ("body", "secondary", ""):
+                    try:
+                        cur = float(el.attrib.get("font-size", "0"))
+                    except ValueError:
+                        cur = 0.0
+                    if 18.0 <= cur <= 26.0:
+                        el.set("font-size", body_px)
+                    if el.attrib.get("font-weight") in ("600", "700", "bold") and role != "body_heading":
+                        el.set("font-weight", "400")
+        tree.write(svg_path, encoding="utf-8", xml_declaration=True)
 
 
 def _natural_sort_key(path: Path) -> tuple[int, str]:
@@ -105,6 +187,8 @@ def build_from_plan(
     )
     if not svg_files:
         raise RuntimeError(f"Template renderer produced zero SVG slides in {svg_dir}")
+
+    _apply_template_scientific_body_style(svg_files, template_dir)
 
     notes = _extract_plan_notes(plan, svg_files)
     export_svgs_to_pptx(svg_files, out_pptx, notes=notes or None)

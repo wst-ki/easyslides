@@ -332,3 +332,70 @@ def test_route3_reconstruct_layer_abc_and_diff(tmp_path: Path):
         assert res["diff"] is not None
         assert res["diff"]["slide_count"] == 1
         assert Path(res["diff"]["slides"][0]["comparison_png"]).is_file()
+
+
+def test_scientific_body_style_normalization_opt_in(tmp_path: Path):
+    from easyslides_mac.builder import _apply_template_scientific_body_style
+
+    tpl_dir = tmp_path / "custom_tpl"
+    tpl_dir.mkdir()
+    (tpl_dir / "layouts.json").write_text(
+        json.dumps(
+            {
+                "colors": {
+                    "primary": "#4472C4",
+                    "banner": "#4970B5",
+                    "body": "#2B3A46",
+                    "border": "#CED5DA",
+                },
+                "typography": {
+                    "latin_font": "Times New Roman",
+                    "east_asian_font": "Microsoft YaHei",
+                    "body_pt": 17,
+                    "caption_pt": 14,
+                    "normalize_scientific_body": True,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    svg_path = tmp_path / "07_sci.svg"
+    svg_path.write_text(
+        """<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720">
+  <g id="scientific-body">
+    <rect x="64" y="200" width="400" height="40" fill="#194A37" stroke="#D3E4DA"/>
+    <text x="80" y="228" font-family="Microsoft YaHei" font-size="24" font-weight="700" fill="#17251F" data-text-role="body">表头文本</text>
+    <text x="80" y="280" font-family="KaiTi, Times New Roman" font-size="18.6667" font-weight="400" fill="#54786B" data-text-role="caption"><tspan x="80" y="280"><tspan font-family="KaiTi">图题</tspan><tspan font-family="Times New Roman"> Fig. 1</tspan></tspan></text>
+  </g>
+</svg>
+""",
+        encoding="utf-8",
+    )
+
+    _apply_template_scientific_body_style([svg_path], tpl_dir)
+    out = svg_path.read_text(encoding="utf-8")
+    assert "#4472C4" in out
+    assert "#CED5DA" in out
+    assert "#2B3A46" in out
+    assert "#4970B5" in out
+    assert "#194A37" not in out
+    assert "#D3E4DA" not in out
+    assert "#17251F" not in out
+    assert "KaiTi" not in out
+    assert "'Times New Roman', 'Microsoft YaHei'" in out
+    assert 'font-size="22.6667"' in out
+    assert 'font-size="18.6667"' in out
+    assert 'font-weight="700"' not in out
+
+    # Opt-out template must leave SVG untouched.
+    tpl_default = tmp_path / "default_tpl"
+    tpl_default.mkdir()
+    (tpl_default / "layouts.json").write_text(json.dumps({"typography": {}}), encoding="utf-8")
+    untouched = tmp_path / "untouched.svg"
+    raw = '<svg xmlns="http://www.w3.org/2000/svg"><g id="scientific-body"><rect fill="#194A37"/></g></svg>'
+    untouched.write_text(raw, encoding="utf-8")
+    _apply_template_scientific_body_style([untouched], tpl_default)
+    assert untouched.read_text(encoding="utf-8") == raw
+
