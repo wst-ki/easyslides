@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling>=1.25.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "easyslides-mac"
+version = "0.1.0"
+description = "Clean, background-safe macOS-first toolkit for editable academic PPTX creation, template filling, and slide reconstruction."
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+license = { text = "MIT" }
+dependencies = [
+    "python-pptx>=1.0.0",
+    "Pillow>=10.0.0",
+    "lxml>=5.0.0",
+    "defusedxml>=0.7.1",
+    "PyMuPDF>=1.24.0",
+    "numpy>=1.26.0",
+    "openpyxl>=3.1.0",
+    "mammoth>=1.6.0",
+    "beautifulsoup4>=4.12.0",
+    "requests>=2.31.0",
+    "svglib>=1.5.0",
+    "reportlab>=4.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+]
+
+[project.scripts]
+esmac = "easyslides_mac.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["easyslides_mac"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
