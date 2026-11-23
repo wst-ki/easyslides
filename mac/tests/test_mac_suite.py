@@ -486,7 +486,7 @@ def test_no_autofit_three_line_table_and_svg_inline(tmp_path: Path):
     assert 'marL="114300"' in slide_xml
     assert "<a:lnL><a:noFill/></a:lnL>" in slide_xml
     assert '<a:srgbClr val="2E4A7D"/>' in slide_xml
-    assert '<a:srgbClr val="CBD5E1"/>' in slide_xml
+    assert '<a:srgbClr val="94A3B8"/>' in slide_xml
     assert 'algn="r"' in slide_xml
     # Inlined vector SVG must emit native shapes/text with zero raster <p:pic>
     assert "R² = 0.89" in slide_xml

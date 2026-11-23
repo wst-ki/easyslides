@@ -62,29 +62,29 @@ def _style_three_line_table(
 
     # Compute target frame (flush with standard academic body box)
     tx = float(body_box.get("x", 52)) if isinstance(body_box, dict) else 52.0
-    ty = max(float(body_box.get("y", 196)) + 20.0, 192.0) if isinstance(body_box, dict) else 196.0
+    ty = max(float(body_box.get("y", 184)) + 12.0, 184.0) if isinstance(body_box, dict) else 184.0
     tw = float(body_box.get("w", 1176)) if isinstance(body_box, dict) else 1176.0
-    max_h = float(body_box.get("h", 440)) - 60.0 if isinstance(body_box, dict) else 380.0
+    max_h = float(body_box.get("h", 400)) - 72.0 if isinstance(body_box, dict) else 340.0
 
-    # Measure column content length to assign clean proportional widths
+    # Measure column content length (headers + data) to prevent awkward wrapping
     col_weights = [6.0] * max_col
     col_texts: dict[int, list[str]] = {c: [] for c in range(1, max_col + 1)}
     for r, c, cell_el in cells:
         txt = " ".join(_text_content(t) for t in cell_el.iter() if t.tag.rsplit("}", 1)[-1] == "text").strip()
         if r > 1:
             col_texts[c].append(txt)
-        eff_len = sum(1.7 if ord(ch) > 127 else 0.9 for ch in txt)
-        col_weights[c - 1] = max(col_weights[c - 1], min(eff_len + 4.0, 34.0))
+        eff_len = sum(1.85 if ord(ch) > 127 else 0.95 for ch in txt)
+        col_weights[c - 1] = max(col_weights[c - 1], min(eff_len + 3.0, 42.0))
 
     total_w = sum(col_weights) or 1.0
-    raw_widths = [max(140.0, tw * (w / total_w)) for w in col_weights]
+    raw_widths = [max(116.0, tw * (w / total_w)) for w in col_weights]
     scale_w = tw / sum(raw_widths)
     col_widths = [round(w * scale_w, 2) for w in raw_widths]
     col_widths[-1] = round(tw - sum(col_widths[:-1]), 2)
 
-    header_h = 64.0
+    header_h = 56.0
     data_rows = max(1, max_row - 1)
-    data_h = min(72.0, max(54.0, (max_h - header_h) / data_rows))
+    data_h = min(62.0, max(48.0, (max_h - header_h) / data_rows))
     row_heights = [header_h] + [round(data_h, 2)] * data_rows
     th = round(sum(row_heights), 2)
 
@@ -109,6 +109,8 @@ def _style_three_line_table(
     for h in row_heights[:-1]:
         row_ys.append(row_ys[-1] + h)
 
+    header_rule = "#94A3B8" if rule_color.upper() in {"#CBD5E1", "#E2E8F0"} else rule_color
+
     for r, c, cell_el in cells:
         cx = col_xs[c - 1]
         cy = row_ys[r - 1]
@@ -125,12 +127,19 @@ def _style_three_line_table(
 
         cell_el.set("data-pptx-border-left", "none")
         cell_el.set("data-pptx-border-right", "none")
-        cell_el.set("data-pptx-border-top", f"1.5 {primary}" if r == 1 else "none")
         if r == 1:
-            cell_el.set("data-pptx-border-bottom", f"1 {rule_color}")
+            cell_el.set("data-pptx-border-top", f"1.75 {primary}")
+            cell_el.set("data-pptx-border-bottom", f"1.1 {header_rule}")
+        elif r == 2:
+            # Mirror the header bottom rule on row 2's top edge so LibreOffice & PowerPoint
+            # never let row 2's explicit noFill override row 1's header rule.
+            cell_el.set("data-pptx-border-top", f"1.1 {header_rule}")
+            cell_el.set("data-pptx-border-bottom", f"1.75 {primary}" if r == max_row else "none")
         elif r == max_row:
-            cell_el.set("data-pptx-border-bottom", f"1.5 {primary}")
+            cell_el.set("data-pptx-border-top", "none")
+            cell_el.set("data-pptx-border-bottom", f"1.75 {primary}")
         else:
+            cell_el.set("data-pptx-border-top", "none")
             cell_el.set("data-pptx-border-bottom", "none")
 
         for child in cell_el:
