@@ -399,3 +399,97 @@ def test_scientific_body_style_normalization_opt_in(tmp_path: Path):
     _apply_template_scientific_body_style([untouched], tpl_default)
     assert untouched.read_text(encoding="utf-8") == raw
 
+
+def test_no_autofit_three_line_table_and_svg_inline(tmp_path: Path):
+    import zipfile
+
+    from easyslides_mac.builder import (
+        _apply_template_scientific_body_style,
+        _inline_vector_svg_images,
+        export_svgs_to_pptx,
+    )
+
+    tpl_dir = tmp_path / "tpl"
+    tpl_dir.mkdir()
+    (tpl_dir / "layouts.json").write_text(
+        json.dumps(
+            {
+                "colors": {"primary": "#2E4A7D", "body": "#2E3D4B", "rule": "#CBD5E1"},
+                "typography": {
+                    "latin_font": "Times New Roman",
+                    "east_asian_font": "Microsoft YaHei",
+                    "body_pt": 17,
+                    "normalize_scientific_body": True,
+                    "table_style": "three_line",
+                    "no_autofit": True,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    chart_svg = tmp_path / "vector_chart.svg"
+    chart_svg.write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 200" width="300" height="200">'
+        '<rect x="10" y="20" width="120" height="60" fill="#2E4A7D"/>'
+        '<text x="20" y="140" font-family="Times New Roman" font-size="16" fill="#1B2A38">R² = 0.89</text>'
+        "</svg>",
+        encoding="utf-8",
+    )
+
+    slide_svg = tmp_path / "01_slide.svg"
+    slide_svg.write_text(
+        f"""<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720">
+  <rect x="0" y="0" width="1280" height="720" fill="#FFFFFF"/>
+  <text x="52" y="100" font-family="'Times New Roman', 'Microsoft YaHei'" font-size="22.6667"
+        fill="#2E3D4B" data-pptx-textbox="true" data-pptx-no-autofit="true"
+        data-pptx-box-x="52" data-pptx-box-y="80" data-pptx-box-w="500" data-pptx-box-h="60">Locked Body</text>
+  <image id="fig-slot" x="600" y="80" width="300" height="200" href="{chart_svg.name}"/>
+  <g id="scientific-body">
+    <g data-pptx-table="true" data-pptx-table-x="64" data-pptx-table-y="200" data-pptx-table-w="1000" data-pptx-table-h="200">
+      <g data-pptx-table-cell="true" data-pptx-table-row="1" data-pptx-table-col="1">
+        <rect x="64" y="200" width="500" height="100" fill="#FFFFFF" stroke="#D3E4DA" stroke-width="0.5"/>
+        <text x="74" y="240" font-size="22" font-weight="700" fill="#102F4A">Model</text>
+      </g>
+      <g data-pptx-table-cell="true" data-pptx-table-row="1" data-pptx-table-col="2">
+        <rect x="564" y="200" width="500" height="100" fill="#FFFFFF" stroke="#D3E4DA" stroke-width="0.5"/>
+        <text x="574" y="240" font-size="22" font-weight="700" fill="#102F4A">R2</text>
+      </g>
+      <g data-pptx-table-cell="true" data-pptx-table-row="2" data-pptx-table-col="1">
+        <rect x="64" y="300" width="500" height="100" fill="#FFFFFF" stroke="#D3E4DA" stroke-width="0.5"/>
+        <text x="74" y="340" font-size="22" fill="#17251F">Baseline</text>
+      </g>
+      <g data-pptx-table-cell="true" data-pptx-table-row="2" data-pptx-table-col="2">
+        <rect x="564" y="300" width="500" height="100" fill="#FFFFFF" stroke="#D3E4DA" stroke-width="0.5"/>
+        <text x="574" y="340" font-size="22" fill="#17251F">0.89</text>
+      </g>
+    </g>
+  </g>
+</svg>
+""",
+        encoding="utf-8",
+    )
+
+    _apply_template_scientific_body_style([slide_svg], tpl_dir)
+    _inline_vector_svg_images([slide_svg])
+
+    out_pptx = tmp_path / "out.pptx"
+    export_svgs_to_pptx([slide_svg], out_pptx)
+
+    with zipfile.ZipFile(out_pptx) as zf:
+        slide_xml = zf.read("ppt/slides/slide1.xml").decode("utf-8")
+    # Locked wrapped textbox must emit wrap="square" + <a:noAutofit/>
+    assert 'wrap="square"' in slide_xml and "<a:noAutofit/>" in slide_xml
+    # Native three-line table borders & cell margins
+    assert "<a:tbl>" in slide_xml
+    assert 'marL="114300"' in slide_xml
+    assert "<a:lnL><a:noFill/></a:lnL>" in slide_xml
+    assert '<a:srgbClr val="2E4A7D"/>' in slide_xml
+    assert '<a:srgbClr val="CBD5E1"/>' in slide_xml
+    assert 'algn="r"' in slide_xml
+    # Inlined vector SVG must emit native shapes/text with zero raster <p:pic>
+    assert "R² = 0.89" in slide_xml
+    assert "<p:pic>" not in slide_xml
+
+

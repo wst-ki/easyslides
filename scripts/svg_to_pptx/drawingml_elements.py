@@ -1306,10 +1306,11 @@ def convert_text(elem: ET.Element, ctx: ConvertContext) -> ShapeResult | None:
         _is_truthy_attr(elem, 'data-pptx-no-wrap')
         or str(elem.get('data-easyslides-single-line') or '').strip().lower() == 'required'
     )
+    no_autofit = _is_truthy_attr(elem, 'data-pptx-no-autofit')
     wrap_mode = 'none' if no_wrap or not keep_textbox else 'square'
     autofit_xml = (
         '<a:noAutofit/>'
-        if no_wrap
+        if (no_wrap or no_autofit)
         else '<a:normAutofit/>'
         if keep_textbox
         else '<a:spAutoFit/>'

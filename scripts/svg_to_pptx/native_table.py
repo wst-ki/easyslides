@@ -217,6 +217,41 @@ def _side_line(stroke_xml: str, side: str) -> str:
     return f"<a:ln{side}{match.group('attrs')}>{match.group('body')}</a:ln{side}>"
 
 
+_SIDE_ATTR_MAP = {"L": "left", "R": "right", "T": "top", "B": "bottom"}
+_HEX_COLOR_RE = re.compile(r"#([0-9A-Fa-f]{6})\b")
+
+
+def _side_border_xml(cell: _Cell, side: str, fallback_stroke_xml: str) -> str:
+    """Resolve optional per-side border overrides (e.g. academic three-line tables)."""
+    attr_name = f"data-pptx-border-{_SIDE_ATTR_MAP[side]}"
+    raw = cell.element.get(attr_name)
+    if raw is None and cell.rect is not None:
+        raw = cell.rect.get(attr_name)
+    if raw is None:
+        return _side_line(fallback_stroke_xml, side)
+    spec = raw.strip()
+    if not spec or spec.lower() in {"none", "0", "transparent"}:
+        return f"<a:ln{side}><a:noFill/></a:ln{side}>"
+    hex_match = _HEX_COLOR_RE.search(spec)
+    if not hex_match:
+        return _side_line(fallback_stroke_xml, side)
+    color_hex = hex_match.group(1).upper()
+    width_part = spec[:hex_match.start()].strip()
+    try:
+        width_px = float(width_part) if width_part else 1.0
+    except ValueError:
+        width_px = 1.0
+    if width_px <= 0:
+        return f"<a:ln{side}><a:noFill/></a:ln{side}>"
+    w_emu = px_to_emu(width_px)
+    return (
+        f'<a:ln{side} w="{w_emu}" cap="flat" cmpd="sng" algn="ctr">'
+        f'<a:solidFill><a:srgbClr val="{color_hex}"/></a:solidFill>'
+        f'<a:prstDash val="solid"/>'
+        f"</a:ln{side}>"
+    )
+
+
 def _cell_margins(cell: ET.Element) -> str:
     attrs = []
     for name, fallback in (
@@ -333,7 +368,7 @@ def _cell_xml(
             merge_attrs.append(f'rowSpan="{row_span}"')
         if col_span > 1:
             merge_attrs.append(f'gridSpan="{col_span}"')
-    border_xml = "".join(_side_line(stroke, side) for side in ("L", "R", "T", "B"))
+    border_xml = "".join(_side_border_xml(cell, side, stroke) for side in ("L", "R", "T", "B"))
     # DrawingML places cell borders before the cell fill inside tcPr.
     vertical_anchor = _cell_vertical_anchor(cell)
     anchor_attr = f' anchor="{vertical_anchor}"' if vertical_anchor else ""
