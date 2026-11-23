@@ -458,7 +458,7 @@ def test_no_autofit_three_line_table_and_svg_inline(tmp_path: Path):
       </g>
       <g data-pptx-table-cell="true" data-pptx-table-row="2" data-pptx-table-col="1">
         <rect x="64" y="300" width="500" height="100" fill="#FFFFFF" stroke="#D3E4DA" stroke-width="0.5"/>
-        <text x="74" y="340" font-size="22" fill="#17251F">Baseline</text>
+        <text x="74" y="340" font-size="22" fill="#17251F" data-pptx-no-wrap="true"><tspan x="74" y="340">Linear</tspan><tspan x="74" y="370">Model</tspan></text>
       </g>
       <g data-pptx-table-cell="true" data-pptx-table-row="2" data-pptx-table-col="2">
         <rect x="564" y="300" width="500" height="100" fill="#FFFFFF" stroke="#D3E4DA" stroke-width="0.5"/>
@@ -488,6 +488,7 @@ def test_no_autofit_three_line_table_and_svg_inline(tmp_path: Path):
     assert '<a:srgbClr val="2E4A7D"/>' in slide_xml
     assert '<a:srgbClr val="94A3B8"/>' in slide_xml
     assert 'algn="r"' in slide_xml
+    assert "Linear Model" in slide_xml
     # Inlined vector SVG must emit native shapes/text with zero raster <p:pic>
     assert "R² = 0.89" in slide_xml
     assert "<p:pic>" not in slide_xml

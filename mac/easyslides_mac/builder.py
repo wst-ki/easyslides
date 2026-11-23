@@ -20,7 +20,22 @@ _NUMERIC_CELL_RE = re.compile(
 
 
 def _text_content(el: ET.Element) -> str:
-    return "".join(el.itertext()).strip()
+    tspans = [c for c in el if c.tag.rsplit("}", 1)[-1] == "tspan"]
+    if not tspans:
+        return "".join(el.itertext()).strip()
+    parts = ["".join(sp.itertext()) for sp in tspans]
+    merged = ""
+    for part in parts:
+        p = part.strip()
+        if not p:
+            continue
+        if not merged:
+            merged = p
+        elif re.search(r"[A-Za-z0-9,.;:]$", merged) and re.match(r"^[A-Za-z0-9(]", p):
+            merged += " " + p
+        else:
+            merged += p
+    return merged.strip()
 
 
 def _is_numeric_cell(text: str) -> bool:
@@ -153,6 +168,12 @@ def _style_three_line_table(
                 child.set("stroke", "none")
                 child.set("stroke-width", "0")
             elif tag == "text":
+                unwrapped = _text_content(child)
+                if unwrapped and list(child):
+                    for sp in list(child):
+                        child.remove(sp)
+                    child.text = unwrapped
+                child.attrib.pop("data-pptx-no-wrap", None)
                 child.set("data-pptx-box-x", f"{cx + 12:.2f}")
                 child.set("data-pptx-box-y", f"{cy + 6:.2f}")
                 child.set("data-pptx-box-w", f"{max(20.0, cw - 24):.2f}")
